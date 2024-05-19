@@ -4,16 +4,17 @@ import { MantineProvider,Container, Button } from '@mantine/core';
 import NavBar from './components/NavBar';
 import Scene from './components/Scene';
 function App() {
-  const [selectedScene, setSelectedScene] = useState("Scene1");
-  const [scene, setScene] = useState('home');
+  const [scene, setScene] = useState('sceneA1');
 
   return (
 
       <MantineProvider withGlobalStyles withNormalizeCSS>
-      <Container >
-        <NavBar onSelect={setSelectedScene} />
-        <Scene sceneType={scene} />
-      </Container>
+      <div style={{ position: 'relative' }}>
+        <NavBar setScene={setScene} />
+        <Container style={{ padding: '10px 0px', margin:"0px"}}>
+          <Scene sceneType={scene} />
+        </Container>
+      </div>
     </MantineProvider>
   
     
