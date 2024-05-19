@@ -142,12 +142,12 @@ function ThreeContainer() {
         const ccdikhelper = new CCDIKHelper(OOI.kira, iks, 0.01);
         scene.add(ccdikhelper);
 
-        gui = new GUI();
-        gui.add(conf, 'followSphere').name('follow sphere');
-        gui.add(conf, 'turnHead').name('turn head');
-        gui.add(conf, 'ik_solver').name('IK auto update');
-        gui.add(conf, 'update').name('IK manual update()');
-        gui.open();
+        // gui = new GUI();
+        // gui.add(conf, 'followSphere').name('follow sphere');
+        // gui.add(conf, 'turnHead').name('turn head');
+        // gui.add(conf, 'ik_solver').name('IK auto update');
+        // gui.add(conf, 'update').name('IK manual update()');
+        // gui.open();
 
         window.addEventListener('resize', onWindowResize, false);
       }

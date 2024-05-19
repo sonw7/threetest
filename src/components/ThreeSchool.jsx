@@ -20,7 +20,7 @@ function ThreeContainer() {
     if (!isContainerRunning.current && containerRef.current) {
       isContainerRunning.current = true;
       let scene, camera, renderer, wgl_controls, gui, Gui, clock;
-
+      let roadways = new THREE.Object3D();
       sceneInit().then(animate);
 
       async function sceneInit() {
@@ -74,24 +74,71 @@ function ThreeContainer() {
         wgl_controls.movementSpeed = 150;
         wgl_controls.lookSpeed = 0.1;
         window.addEventListener('resize', onWindowResize, false);
-        // orbitControls = new OrbitControls(camera, renderer.domElement);
-        // orbitControls.minDistance = 0.2;
-        // orbitControls.maxDistance = 1.5;
-        // orbitControls.enableDamping = true;
-
-        // transformControls = new TransformControls(camera, renderer.domElement);
-        // transformControls.size = 0.75;
-        // transformControls.showX = false;
-        // transformControls.space = 'world';
-        // transformControls.attach(OOI.target_hand_l);
-        // scene.add(transformControls);
 
         guifun();
-        roadmodeltest();
-        moverPoint();
+        roadmodeltest(roadways);
+        //moverPoint();
 
 
       }
+
+      function loadTextureAndCreateMesh(config, roadways){
+        const textureLoader = new THREE.TextureLoader();
+        let texturePath;
+  
+        switch (config.rockType) {
+          case '1':
+            texturePath = '/textures/door/444.bmp';
+            break;
+          case '2':
+            texturePath = '/textures/door/01.bmp';
+            break;
+          case '3':
+            texturePath = '/textures/door/02.bmp';
+            break;
+          case '4':
+            texturePath = '/textures/door/01.bmp';
+            break;
+          default:
+            texturePath = '/textures/door/01.bmp';
+            break;
+        }
+  
+        textureLoader.load(
+          texturePath,
+          (texture) => {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(2000, 2000);
+  
+             //绘制mesh
+        const Geometry = new THREE.BufferGeometry();
+        Geometry.setAttribute( 'position', new THREE.BufferAttribute( config.roadway.vertices, 3 ) );
+        Geometry.setIndex( config.roadway.indices );
+        Geometry.center();
+        Geometry.computeBoundingBox();
+        Geometry.computeVertexNormals();
+        Geometry.normalizeNormals () ;
+        Geometry.setAttribute( 'uv', new THREE.BufferAttribute(
+            boxUvCom( Geometry.getAttribute('position'),
+            Geometry.getAttribute('normal'),
+            Geometry.boundingBox.max, Geometry.boundingBox.min,10)
+            , 2 ) );
+        var material = new THREE.MeshPhongMaterial( { 
+                map:texture,
+                side:THREE.DoubleSide,
+                flatShading:true,
+            } )
+        let mesh = new THREE.Mesh(Geometry,material)
+
+            roadways.add(mesh);
+          },
+          undefined,
+          (error) => {
+            console.error('An error occurred loading the texture:', error);
+          }
+        );
+      };
 
       function animate() {
 
@@ -196,37 +243,36 @@ function ThreeContainer() {
                    } );
                } }, 'fun').name('拖放控制');
       }
-      function roadmodeltest(){
+      function roadmodeltest(roadways){
         const roads=Data;    
-        console.log("巷道的data",Data)       //记录点
         let vertices =[];
         let Vertices;
 
         //加载不同纹理
-        let texture1 = new THREE.TextureLoader().load("textures/door/444.bmp");
-        texture1.repeat.set(2000,2000)
-        texture1.wrapS = THREE.RepeatWrapping;
-        texture1.wrapT = THREE.RepeatWrapping;
-        let texture2 = new THREE.TextureLoader().load("textures/door/01.bmp");
-        texture2.repeat.set(2000,2000)
-        texture2.wrapS = THREE.RepeatWrapping;
-        texture2.wrapT = THREE.RepeatWrapping;
+        // let texture1 = new THREE.TextureLoader().load("textures/door/444.bmp");
+        // texture1.repeat.set(2000,2000)
+        // texture1.wrapS = THREE.RepeatWrapping;
+        // texture1.wrapT = THREE.RepeatWrapping;
+        // let texture2 = new THREE.TextureLoader().load("textures/door/01.bmp");
+        // texture2.repeat.set(2000,2000)
+        // texture2.wrapS = THREE.RepeatWrapping;
+        // texture2.wrapT = THREE.RepeatWrapping;
 
-        let texture3 = new THREE.TextureLoader().load("textures/door/02.bmp");
-        texture3.repeat.set(2000,2000)
-        texture3.wrapS = THREE.RepeatWrapping;
-        texture3.wrapT = THREE.RepeatWrapping;
+        // let texture3 = new THREE.TextureLoader().load("textures/door/02.bmp");
+        // texture3.repeat.set(2000,2000)
+        // texture3.wrapS = THREE.RepeatWrapping;
+        // texture3.wrapT = THREE.RepeatWrapping;
 
         for(let m=0;m<roads.vertices.length/3;m++){
             cotpoints(  roads.vertices[m*3]*1,roads.vertices[m*3+2]*1,roads.vertices[m*3+1]*1, "roads",vertices);
         }
-        console.log("巷道索引",roads.indices)
+        //console.log("巷道索引",roads.indices)
 
         //分成两组顶点
         const indices1 = roads.indices.slice(0,30000)
         const indices2 = roads.indices.slice(129000);
-        console.log('巷道第一部分索引',indices1)
-        console.log('巷道第二部分索引2',indices2)
+        // console.log('巷道第一部分索引',indices1)
+        // console.log('巷道第二部分索引2',indices2)
         //1
         Vertices= new Float32Array(vertices.length);
         for(let i=0;i<vertices.length;i++){
@@ -238,70 +284,85 @@ function ThreeContainer() {
             V2[i]=vertices[i];
         }
 
+        //自定义数据
+        const rockConfigs = [
+          {
+            rockType:"1",
+            roadway:{
+              vertices:Vertices,
+              indices:indices1,
+            }
+          },
+          {
+            rockType:"2",
+            roadway:{
+              vertices:Vertices,
+              indices:indices2,
+            }
+          }
+        ]
+      //分部分渲染
+       rockConfigs.forEach((config) => {
+        console.log(config);
+        loadTextureAndCreateMesh(config,roadways)
+       });
+       scene.add(roadways);
+
         //绘制mesh
-        const Geometry1 = new THREE.BufferGeometry();
-        Geometry1.setAttribute( 'position', new THREE.BufferAttribute( Vertices, 3 ) );
-        Geometry1.setIndex( indices1 );
-        Geometry1.center();
+        // const Geometry1 = new THREE.BufferGeometry();
+        // Geometry1.setAttribute( 'position', new THREE.BufferAttribute( Vertices, 3 ) );
+        // Geometry1.setIndex( indices1 );
+        // Geometry1.center();
 
-        //-----------------------------
-        Geometry1.computeBoundingBox();
-        Geometry1.computeVertexNormals();
-        Geometry1.normalizeNormals () ;
+        // Geometry1.computeBoundingBox();
+        // Geometry1.computeVertexNormals();
+        // Geometry1.normalizeNormals () ;
  
-
-        Geometry1.setAttribute( 'uv', new THREE.BufferAttribute(
-            boxUvCom( Geometry1.getAttribute('position'),
-            Geometry1.getAttribute('normal'),
-            Geometry1.boundingBox.max, Geometry1.boundingBox.min,10)
-            , 2 ) );
-
-            //------------------------
+        // Geometry1.setAttribute( 'uv', new THREE.BufferAttribute(
+        //     boxUvCom( Geometry1.getAttribute('position'),
+        //     Geometry1.getAttribute('normal'),
+        //     Geometry1.boundingBox.max, Geometry1.boundingBox.min,10)
+        //     , 2 ) );
         
-        console.log("Geometry1",Geometry1)
-        var material1 = new THREE.MeshPhongMaterial( { 
-                map:getTexture("3"),
-                side:THREE.DoubleSide,
-                flatShading:true,
-            } )
-        let mesh1 = new THREE.Mesh(Geometry1,material1)
+        // console.log("Geometry1",Geometry1)
+        // var material1 = new THREE.MeshPhongMaterial( { 
+        //         map:texture3,
+        //         side:THREE.DoubleSide,
+        //         flatShading:true,
+        //     } )
+        // let mesh1 = new THREE.Mesh(Geometry1,material1)
 
-        //----------------
-        //准备读入数据
-        const geometry2 = new THREE.BufferGeometry();
-        //设置面索引
-        geometry2.setIndex( indices2 );
-        geometry2.setAttribute( 'position', new THREE.BufferAttribute( V2, 3 ) );
-        geometry2.center();
-        geometry2.translate(0,0,0)
+        // //----------------
+        // //准备读入数据
+        // const geometry2 = new THREE.BufferGeometry();
+        // //设置面索引
+        // geometry2.setIndex( indices2 );
+        // geometry2.setAttribute( 'position', new THREE.BufferAttribute( V2, 3 ) );
+        // geometry2.center();
+        // geometry2.translate(0,0,0)
 
-
-         //-----------------------------
-          geometry2.computeBoundingBox();
-          geometry2.computeVertexNormals();
-          geometry2.normalizeNormals () ;
+        // geometry2.computeBoundingBox();
+        // geometry2.computeVertexNormals();
+        // geometry2.normalizeNormals () ;
   
 
-          geometry2.setAttribute( 'uv', new THREE.BufferAttribute(
-             boxUvCom(  geometry2.getAttribute('position'),
-             geometry2.getAttribute('normal'),
-             geometry2.boundingBox.max,  geometry2.boundingBox.min,10)
-             , 2 ) );
+        // geometry2.setAttribute( 'uv', new THREE.BufferAttribute(
+        //      boxUvCom(  geometry2.getAttribute('position'),
+        //      geometry2.getAttribute('normal'),
+        //      geometry2.boundingBox.max,  geometry2.boundingBox.min,10)
+        //      , 2 ) );
 
-             //------------------------
-        
-        console.log("geometry2",geometry2)
-        var material2 = new THREE.MeshPhongMaterial( { 
-            map:getTexture("2"),
-            side:THREE.DoubleSide,
-            flatShading:true,
-        } )
-        let mesh2 = new THREE.Mesh(geometry2,material2)
+        // var material2 = new THREE.MeshPhongMaterial( { 
+        //     map:texture2,
+        //     side:THREE.DoubleSide,
+        //     flatShading:true,
+        // } )
+        // let mesh2 = new THREE.Mesh(geometry2,material2)
 
-        const allGeometry = new THREE.Object3D();
-        allGeometry.add(mesh1);
-        allGeometry.add(mesh2);
-        scene.add(allGeometry)
+        // const allGeometry = new THREE.Object3D();
+        // allGeometry.add(mesh1);
+        //allGeometry.add(mesh2);
+        //scene.add(allGeometry)
 
         // let geometryArray = []; // 将你的要合并的多个geometry放入到该数组
         // let materialArray = []; // 将你的要赋值的多个material放入到该数组
