@@ -35,7 +35,7 @@ function ThreeContainer() {
            "textures/sky/pz.jpg",
            "textures/sky/nz.jpg",
          ]);
-
+         //scene.fog = new THREE.Fog( 0x000000, 10, 15 );
 
         camera = new THREE.PerspectiveCamera(
           55,
@@ -50,16 +50,16 @@ function ThreeContainer() {
 
         clock = new THREE.Clock();
 
-        const ambientLight = new THREE.AmbientLight(0x404040); // soft white light
-        scene.add(ambientLight);
+        const ambientLight = new THREE.AmbientLight(0x000000); // soft white light
+        //scene.add(ambientLight);
         //添加直线光
-        const directLight = new THREE.DirectionalLight(0xffffff, 5)
+        const directLight = new THREE.DirectionalLight(0xffffff, 1)
         directLight.position.set(0,10,10)
-        scene.add(directLight);
+        //scene.add(directLight);
         
-        const point7 = new THREE.PointLight(0xffffff,10);
+        const point7 = new THREE.PointLight(0xffffff,1);
         point7.position.set(0, 100, 100); //点光源位置
-        scene.add(point7); //点光源添加到场景中
+        //scene.add(point7); //点光源添加到场景中
 
 
         renderer = new THREE.WebGLRenderer({
@@ -124,10 +124,10 @@ function ThreeContainer() {
             Geometry.getAttribute('normal'),
             Geometry.boundingBox.max, Geometry.boundingBox.min,10)
             , 2 ) );
-        var material = new THREE.MeshPhongMaterial( { 
+        var material = new THREE.MeshBasicMaterial( { 
                 map:texture,
                 side:THREE.DoubleSide,
-                flatShading:true,
+                //flatShading:true,
             } )
         let mesh = new THREE.Mesh(Geometry,material)
 
