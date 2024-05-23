@@ -124,13 +124,21 @@ function ThreeContainer() {
             Geometry.getAttribute('normal'),
             Geometry.boundingBox.max, Geometry.boundingBox.min,10)
             , 2 ) );
+            //添加线框
+
+            const edges = new THREE.EdgesGeometry(Geometry);
+            const line = new THREE.LineSegments(
+              edges,
+              new THREE.LineBasicMaterial({ color: 0x000000 })
+            );
+
         var material = new THREE.MeshBasicMaterial( { 
                 map:texture,
                 side:THREE.DoubleSide,
                 //flatShading:true,
             } )
         let mesh = new THREE.Mesh(Geometry,material)
-
+        mesh.add(line)//作为子对象加入
             roadways.add(mesh);
           },
           undefined,
