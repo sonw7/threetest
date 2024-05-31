@@ -9,7 +9,7 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 
 import Data from '../assets/jsonobj/test.json' 
 import * as dat from"dat.gui";
-import {boxUvCom} from "../utils/js/boxUvCom.js"
+import {boxUvCom,removeDuplicateTriangles,boxUvComaddAngle} from "../utils/js/boxUvCom.js"
 import { useRef, useEffect } from 'react';
 
 function ThreeContainer() {
@@ -82,7 +82,7 @@ function ThreeContainer() {
 
       }
 
-      function loadTextureAndCreateMesh(config, roadways){
+      function loadTextureAndCreateMesh(config, roadways ,index){
         const textureLoader = new THREE.TextureLoader();
         let texturePath;
   
@@ -97,10 +97,10 @@ function ThreeContainer() {
             texturePath = '/textures/door/02.bmp';
             break;
           case '4':
-            texturePath = '/textures/door/01.bmp';
+            texturePath = '/textures/door/111.bmp';
             break;
           default:
-            texturePath = '/textures/door/01.bmp';
+            texturePath = '/textures/door/222.bmp';
             break;
         }
   
@@ -109,42 +109,47 @@ function ThreeContainer() {
           (texture) => {
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(2000, 2000);
+            texture.repeat.set(10000, 10000);
   
              //绘制mesh
-        const Geometry = new THREE.BufferGeometry();
-        Geometry.setAttribute( 'position', new THREE.BufferAttribute( config.roadway.vertices, 3 ) );
-        Geometry.setIndex( config.roadway.indices );
-        Geometry.center();
-        Geometry.computeBoundingBox();
-        Geometry.computeVertexNormals();
-        Geometry.normalizeNormals () ;
-        Geometry.setAttribute( 'uv', new THREE.BufferAttribute(
-            boxUvCom( Geometry.getAttribute('position'),
-            Geometry.getAttribute('normal'),
-            Geometry.boundingBox.max, Geometry.boundingBox.min,10)
-            , 2 ) );
-            //添加线框
+             const Geometry = new THREE.BufferGeometry();
+             Geometry.setFromPoints(config.roadway.vertices);
+             //Geometry.setAttribute( 'position', new THREE.BufferAttribute( config.roadway.vertices, 3 ) );
+             Geometry.setIndex( removeDuplicateTriangles(config.roadway.indices) );
+             Geometry.center();
+             Geometry.computeBoundingBox();
+             Geometry.computeVertexNormals();
+            //  Geometry.normalizeNormals () ;computeVertexNormals()会调用，没必要再次调用
+             Geometry.setAttribute( 'uv', new THREE.BufferAttribute(
+                 boxUvCom( Geometry.getAttribute('position'),
+                 Geometry.getAttribute('normal'),
+                 Geometry.boundingBox.max, 
+                 Geometry.boundingBox.min,
+                 10)
+                 , 2 ) );
+                 //添加线框
 
-            const edges = new THREE.EdgesGeometry(Geometry);
-            const line = new THREE.LineSegments(
-              edges,
-              new THREE.LineBasicMaterial({ color: 0x000000 })
-            );
+                 const edges = new THREE.EdgesGeometry(Geometry);
+                 const line = new THREE.LineSegments(
+                   edges,
+                   new THREE.LineBasicMaterial({ color: 0x000000 })
+                 );
 
-        var material = new THREE.MeshBasicMaterial( { 
-                map:texture,
-                side:THREE.DoubleSide,
-                //flatShading:true,
-            } )
-        let mesh = new THREE.Mesh(Geometry,material)
-        mesh.add(line)//作为子对象加入
-            roadways.add(mesh);
-          },
-          undefined,
-          (error) => {
-            console.error('An error occurred loading the texture:', error);
-          }
+             var material = new THREE.MeshBasicMaterial( { 
+                     map:texture,
+                     side:THREE.DoubleSide,
+                     color:0xe6e6e6,
+                     //flatShading:true,
+                 } )
+             let mesh = new THREE.Mesh(Geometry,material)
+             console.log(`第${index+1}块渲染`,Geometry)
+             mesh.add(line)//作为子对象加入
+                 roadways.add(mesh);
+           },
+               undefined,
+               (error) => {
+                 console.error('An error occurred loading the texture:', error);
+            }
         );
       };
 
@@ -254,22 +259,6 @@ function ThreeContainer() {
       function roadmodeltest(roadways){
         const roads=Data;    
         let vertices =[];
-        let Vertices;
-
-        //加载不同纹理
-        // let texture1 = new THREE.TextureLoader().load("textures/door/444.bmp");
-        // texture1.repeat.set(2000,2000)
-        // texture1.wrapS = THREE.RepeatWrapping;
-        // texture1.wrapT = THREE.RepeatWrapping;
-        // let texture2 = new THREE.TextureLoader().load("textures/door/01.bmp");
-        // texture2.repeat.set(2000,2000)
-        // texture2.wrapS = THREE.RepeatWrapping;
-        // texture2.wrapT = THREE.RepeatWrapping;
-
-        // let texture3 = new THREE.TextureLoader().load("textures/door/02.bmp");
-        // texture3.repeat.set(2000,2000)
-        // texture3.wrapS = THREE.RepeatWrapping;
-        // texture3.wrapT = THREE.RepeatWrapping;
 
         for(let m=0;m<roads.vertices.length/3;m++){
             cotpoints(  roads.vertices[m*3]*1,roads.vertices[m*3+2]*1,roads.vertices[m*3+1]*1, "roads",vertices);
@@ -281,38 +270,28 @@ function ThreeContainer() {
         const indices2 = roads.indices.slice(129000);
         // console.log('巷道第一部分索引',indices1)
         // console.log('巷道第二部分索引2',indices2)
-        //1
-        Vertices= new Float32Array(vertices.length);
-        for(let i=0;i<vertices.length;i++){
-            Vertices[i]=vertices[i];
-        }
-        //2
-        let V2 =  new Float32Array(vertices.length);
-        for(let i=0;i<vertices.length;i++){
-            V2[i]=vertices[i];
-        }
 
         //自定义数据
         const rockConfigs = [
           {
             rockType:"1",
             roadway:{
-              vertices:Vertices,
+              vertices:vertices,
               indices:indices1,
             }
           },
           {
-            rockType:"2",
+            rockType:"3",
             roadway:{
-              vertices:Vertices,
+              vertices:vertices,
               indices:indices2,
             }
           }
         ]
       //分部分渲染
-       rockConfigs.forEach((config) => {
-        console.log(config);
-        loadTextureAndCreateMesh(config,roadways)
+       rockConfigs.forEach((config,index) => {
+        console.log(`分块的数据${index+1}`,config);
+        loadTextureAndCreateMesh(config,roadways,index)
        });
        scene.add(roadways);
 
@@ -464,10 +443,10 @@ function ThreeContainer() {
        }
        function  cotpoints(tx,ty,tz,name,vertices){
 
-
-        vertices.push(-ty);
-        vertices.push(tz);
-        vertices.push(tx);
+        vertices.push(new THREE.Vector3(-ty,tz,tx))
+        // vertices.push(-ty);
+        // vertices.push(tz);
+        // vertices.push(tx);
 
       }
     }

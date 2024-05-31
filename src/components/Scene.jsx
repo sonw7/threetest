@@ -7,7 +7,7 @@ function Scene({ sceneType }) {
     <div>
       {sceneType === 'home' && <ThreeContainer />}
       {sceneType === 'sceneA1' && <ThreeSchool />}
-      {sceneType === 'sceneA2' && <div>Scene 1B Content</div>}
+      {sceneType === 'sceneA2' && <ThreeContainer />}
       {sceneType === 'sceneB2' && <div>Scene 2A Content</div>}
       {sceneType === 'sceneB2' && <div>Scene 2B Content</div>}
     </div>
