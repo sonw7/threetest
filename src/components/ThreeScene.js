@@ -83,11 +83,13 @@ export class ThreeScene {
     this.cubes = [];
 
     // 创建新的方块
+    console.log(this.gui.numberOfObjects)
     for (let i = 0; i < this.gui.numberOfObjects; i++) {
       const cube = this.addCube();
       this.scene.add(cube);
       this.cubes.push(cube);
     }
+    this.render();
   }
 
   combineCubes() {
@@ -110,6 +112,8 @@ export class ThreeScene {
 
     // 添加到场景
     this.scene.add(this.combinedMesh);
+    this.render();
+
   }
 
   addCube() {

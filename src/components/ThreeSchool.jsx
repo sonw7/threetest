@@ -128,11 +128,11 @@ scene.add(pointLight);
         Geometry.computeBoundingBox();
         Geometry.computeVertexNormals();
         Geometry.normalizeNormals () ;
-        // Geometry.setAttribute( 'uv', new THREE.BufferAttribute(
-        //     boxUvCom( Geometry.getAttribute('position'),
-        //     Geometry.getAttribute('normal'),
-        //     Geometry.boundingBox.max, Geometry.boundingBox.min,10)
-        //     , 2 ) );
+        Geometry.setAttribute( 'uv', new THREE.BufferAttribute(
+            boxUvCom( Geometry.getAttribute('position'),
+            Geometry.getAttribute('normal'),
+            Geometry.boundingBox.max, Geometry.boundingBox.min,10)
+            , 2 ) );
             var material = new THREE.MeshStandardMaterial({ 
               map: texture,
               roughness: 0.5,  // 控制反射程度
