@@ -45,21 +45,30 @@ function ThreeContainer() {
         );
 
         //camera.lookAt(scene.position);
-        camera.position.set(10,-1.25,-4);
+        camera.position.set(0,1.25,4);
         camera.lookAt(0,-100,0)
 
         clock = new THREE.Clock();
 
-        const ambientLight = new THREE.AmbientLight(0x000000); // soft white light
-        //scene.add(ambientLight);
-        //添加直线光
-        const directLight = new THREE.DirectionalLight(0xffffff, 1)
-        directLight.position.set(0,10,10)
-        //scene.add(directLight);
+        const ambientLight = new THREE.AmbientLight(0x404040, 2); // 强度调高
+        scene.add(ambientLight);
         
+        //添加直线光
+        const directLight = new THREE.DirectionalLight(0xffffff, 1);
+        directLight.position.set(0,10,10);
+        directLight.castShadow = true;
+directLight.shadow.mapSize.width = 1024;
+directLight.shadow.mapSize.height = 1024;
+
+        scene.add(directLight);
+        
+        const pointLight = new THREE.PointLight(0xffffff, 1.5);
+pointLight.position.set(5, 5, 5);
+scene.add(pointLight);
+
         const point7 = new THREE.PointLight(0xffffff,1);
         point7.position.set(0, 100, 100); //点光源位置
-        //scene.add(point7); //点光源添加到场景中
+        // scene.add(point7); //点光源添加到场景中
 
 
         renderer = new THREE.WebGLRenderer({
@@ -119,16 +128,17 @@ function ThreeContainer() {
         Geometry.computeBoundingBox();
         Geometry.computeVertexNormals();
         Geometry.normalizeNormals () ;
-        Geometry.setAttribute( 'uv', new THREE.BufferAttribute(
-            boxUvCom( Geometry.getAttribute('position'),
-            Geometry.getAttribute('normal'),
-            Geometry.boundingBox.max, Geometry.boundingBox.min,10)
-            , 2 ) );
-        var material = new THREE.MeshBasicMaterial( { 
-                map:texture,
-                side:THREE.DoubleSide,
-                //flatShading:true,
-            } )
+        // Geometry.setAttribute( 'uv', new THREE.BufferAttribute(
+        //     boxUvCom( Geometry.getAttribute('position'),
+        //     Geometry.getAttribute('normal'),
+        //     Geometry.boundingBox.max, Geometry.boundingBox.min,10)
+        //     , 2 ) );
+            var material = new THREE.MeshStandardMaterial({ 
+              map: texture,
+              roughness: 0.5,  // 控制反射程度
+              metalness: 0.2,
+              side: THREE.DoubleSide
+            });
         let mesh = new THREE.Mesh(Geometry,material)
 
             roadways.add(mesh);
@@ -463,6 +473,7 @@ function ThreeContainer() {
 
       }
     }
+    
   }, []);
 
   return <div ref={containerRef} />;
