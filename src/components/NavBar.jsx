@@ -11,8 +11,10 @@ function NavBar({ setScene }) {
             <Button leftSection={<ChevronDown size={16} />}>Scene 1</Button>
           </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA1')}>Scene 1</Menu.Item>
-            <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA2')}>Scene 1</Menu.Item>
+            <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA1')}>巷道</Menu.Item>
+            <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA2')}>方块性能测试</Menu.Item>
+            <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA3')}>网格性能可视化</Menu.Item>
+
           </Menu.Dropdown>
         </Menu>
         <Menu>
@@ -21,7 +23,10 @@ function NavBar({ setScene }) {
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Item leftSection={<Settings />} onClick={() => setScene('sceneB1')}>Scene 2A</Menu.Item>
-            <Menu.Item leftSection={<Settings />} onClick={() => setScene('sceneB2')}>Scene 2B</Menu.Item>
+            <Menu.Item leftSection={<Settings />} onClick={() => setScene('sceneB2')}>摄像机演示</Menu.Item>
+            <Menu.Item leftSection={<Settings />} onClick={() => setScene('sceneB3')}>Scene 2B</Menu.Item>
+
+            
           </Menu.Dropdown>
         </Menu>
       </Group>
