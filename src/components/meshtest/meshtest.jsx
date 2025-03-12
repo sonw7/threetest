@@ -15,18 +15,22 @@ const MeshOptimizationDemo = () => {
   const animationIdRef = useRef(null);
   const originalGeometryRef = useRef(null);
   const optimizedGeometryRef = useRef(null);
+  const originalWireframeRef = useRef(null);
+  const optimizedWireframeRef = useRef(null);
 
   const [threshold, setThreshold] = useState(5);
   const [triangleCountOriginal, setTriangleCountOriginal] = useState(0);
   const [triangleCountOptimized, setTriangleCountOptimized] = useState(0);
   const [showOriginal, setShowOriginal] = useState(true);
   const [showOptimized, setShowOptimized] = useState(true);
+  const [showOriginalWireframe, setShowOriginalWireframe] = useState(true);
+  const [showOptimizedWireframe, setShowOptimizedWireframe] = useState(true);
 
   // 初始化Three.js场景
   useEffect(() => {
     // 创建场景
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111111);
+    scene.background = new THREE.Color(0xe4dfde);
     sceneRef.current = scene;
 
     // 创建相机
@@ -64,13 +68,6 @@ const MeshOptimizationDemo = () => {
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(10, 10, 10);
     scene.add(directionalLight);
-
-    // 添加辅助元素
-    const axesHelper = new THREE.AxesHelper(2);
-    scene.add(axesHelper);
-
-    const gridHelper = new THREE.GridHelper(10, 10);
-    scene.add(gridHelper);
 
     // 创建网格组
     const originalGroup = new THREE.Group();
@@ -149,6 +146,19 @@ const MeshOptimizationDemo = () => {
     }
   }, [showOptimized]);
 
+  // 当线框显示/隐藏状态变化时更新可见性
+  useEffect(() => {
+    if (originalWireframeRef.current) {
+      originalWireframeRef.current.visible = showOriginalWireframe;
+    }
+  }, [showOriginalWireframe]);
+
+  useEffect(() => {
+    if (optimizedWireframeRef.current) {
+      optimizedWireframeRef.current.visible = showOptimizedWireframe;
+    }
+  }, [showOptimizedWireframe]);
+
   // 创建地形网格函数
   const createTerrainMesh = () => {
     const width = 20;
@@ -210,18 +220,22 @@ const MeshOptimizationDemo = () => {
       color: 0x87ceeb,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.3
+      opacity: 0.6
     });
     const solidMesh = new THREE.Mesh(geometry, solidMaterial);
     group.add(solidMesh);
 
     // 创建线框网格
-    const wireframeMaterial = new THREE.MeshBasicMaterial({
+    const wireframeMaterial = new THREE.LineBasicMaterial({
       color: 0xff0000,
-      wireframe: true
+      linewidth: 1
     });
-    const wireframeMesh = new THREE.Mesh(geometry, wireframeMaterial);
-    group.add(wireframeMesh);
+    
+    // 从几何体创建边缘
+    const wireframeGeometry = new THREE.WireframeGeometry(geometry);
+    const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+    group.add(wireframe);
+    originalWireframeRef.current = wireframe;
   };
 
   // 更新优化网格
@@ -251,30 +265,42 @@ const MeshOptimizationDemo = () => {
     }
 
     // 创建优化几何体
-    const optimizedGeometry = optimizeMesh(originalGeometryRef.current, thresholdValue);
+    const result = optimizeMesh(originalGeometryRef.current, thresholdValue);
+    const optimizedGeometry = result.optimizedGeometry;
+    const visualGeometry = result.visualGeometry;
+    
     optimizedGeometryRef.current = optimizedGeometry;
     setTriangleCountOptimized(optimizedGeometry.index.count / 3);
 
-    // 创建实体网格
+    // 创建实体网格 - 使用完整的视觉几何体
     const solidMaterial = new THREE.MeshStandardMaterial({
       color: 0x90ee90,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.3
+      opacity: 0.6
     });
-    const solidMesh = new THREE.Mesh(optimizedGeometry, solidMaterial);
+    const solidMesh = new THREE.Mesh(visualGeometry, solidMaterial);
     group.add(solidMesh);
 
-    // 创建线框网格
-    const wireframeMaterial = new THREE.MeshBasicMaterial({
+    // 创建线框网格 - 只显示优化后的线框
+    const wireframeMaterial = new THREE.LineBasicMaterial({
       color: 0x0000ff,
-      wireframe: true
+      linewidth: 1
     });
-    const wireframeMesh = new THREE.Mesh(optimizedGeometry, wireframeMaterial);
-    group.add(wireframeMesh);
+    
+    // 从优化几何体创建边缘
+    const wireframeGeometry = new THREE.WireframeGeometry(optimizedGeometry);
+    const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+    group.add(wireframe);
+    optimizedWireframeRef.current = wireframe;
+    
+    // 应用当前的线框显示状态
+    if (wireframe) {
+      wireframe.visible = showOptimizedWireframe;
+    }
   };
 
-  // 面片优化函数
+  // 面片优化函数 - 返回优化几何体和视觉几何体
   const optimizeMesh = (geometry, thresholdDegrees) => {
     // 转换阈值从角度到弧度
     const thresholdRadians = thresholdDegrees * Math.PI / 180;
@@ -386,7 +412,7 @@ const MeshOptimizationDemo = () => {
       currentGroup++;
     }
     
-    // 创建优化后的几何体
+    // 创建优化后的几何体索引
     const newIndices = [];
     const groupedTriangles = Array(currentGroup).fill().map(() => []);
     
@@ -423,13 +449,19 @@ const MeshOptimizationDemo = () => {
       }
     });
     
-    // 创建新的几何体
+    // 创建优化几何体 - 用于线框显示
     const optimizedGeometry = new THREE.BufferGeometry();
     optimizedGeometry.setAttribute('position', geometry.attributes.position);
     optimizedGeometry.setAttribute('normal', geometry.attributes.normal);
     optimizedGeometry.setIndex(new THREE.BufferAttribute(new Uint32Array(newIndices), 1));
     
-    return optimizedGeometry;
+    // 创建视觉几何体 - 与原始几何体相同，用于表面显示
+    const visualGeometry = geometry.clone();
+    
+    return {
+      optimizedGeometry,
+      visualGeometry
+    };
   };
 
   return (
@@ -471,6 +503,17 @@ const MeshOptimizationDemo = () => {
             显示原始网格 (三角形数量: {triangleCountOriginal})
           </label>
         </div>
+        <div style={{ marginLeft: 20 }}>
+          <label>
+            <input 
+              type="checkbox" 
+              checked={showOriginalWireframe} 
+              onChange={() => setShowOriginalWireframe(!showOriginalWireframe)} 
+              disabled={!showOriginal}
+            />
+            显示原始网格线框
+          </label>
+        </div>
         <div>
           <label>
             <input 
@@ -479,6 +522,17 @@ const MeshOptimizationDemo = () => {
               onChange={() => setShowOptimized(!showOptimized)} 
             />
             显示优化网格 (三角形数量: {triangleCountOptimized})
+          </label>
+        </div>
+        <div style={{ marginLeft: 20 }}>
+          <label>
+            <input 
+              type="checkbox" 
+              checked={showOptimizedWireframe} 
+              onChange={() => setShowOptimizedWireframe(!showOptimizedWireframe)} 
+              disabled={!showOptimized}
+            />
+            显示优化网格线框
           </label>
         </div>
       </div>
