@@ -9,8 +9,8 @@ import MeshOptimizationDemo from './meshtest/meshtest'
 function Scene({ sceneType }) {
   return (
     <div>
-      {sceneType === 'home' && <ThreeContainer />}
-      {sceneType === 'sceneA1' && <ThreeSchool />}
+      {sceneType === 'sceneA1' && <ThreeContainer />}
+      {/* {sceneType === 'sceneA1' && <ThreeSchool />} */}
       {sceneType === 'sceneA2' && <ThreeTest/>}
       {sceneType === 'sceneA3' && <MeshOptimizationDemo/>}
       {sceneType === 'sceneB1' && <GeologicalDistanceVisualization></GeologicalDistanceVisualization>}
