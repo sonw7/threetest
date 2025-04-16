@@ -72,52 +72,62 @@ function ThreeContainer() {
       scene.add(axesHelper);
 
       // ---------------------------
-      // 5. 创建平面三角网格并根据深度着色
+      // 5. 创建自定义三角网格并根据深度着色
       // ---------------------------
       
-      // 网格分辨率参数
-      const gridSize = 64;
-      const width = 5;
-      const height = 5;
-      
-      // 创建平面三角网格
-      function createTriangleMeshPlane(width, height, segmentsX, segmentsY) {
-        // 创建平面几何体
-        const geometry = new THREE.PlaneGeometry(width, height, segmentsX, segmentsY);
+      // 生成示例数据 (在实际应用中，这些数据可能来自外部)
+      function generateSampleData() {
+        // 创建一个网格化的地形示例
+        const gridSize = 20; // 网格分辨率
+        const size = 5; // 总大小
         
-        // 获取顶点位置
-        const positions = geometry.attributes.position.array;
-        const vertexCount = positions.length / 3;
+        // 顶点数组
+        const vertices = [];
+        // 索引数组
+        const indices = [];
+        // 深度数组
+        const depths = [];
         
-        // 创建二维网格数组存储深度值，便于后续等值线计算
-        const gridX = segmentsX + 1;
-        const gridY = segmentsY + 1;
-        const depthGrid = new Array(gridY).fill(0).map(() => new Array(gridX).fill(0));
-        
-        // 生成深度值 (使用正弦波函数)
-        const depthValues = [];
-        let index = 0;
-        
-        for (let y = 0; y < gridY; y++) {
-          for (let x = 0; x < gridX; x++) {
-            const xPos = positions[index * 3];
-            const yPos = positions[index * 3 + 1];
+        // 生成顶点和深度
+        for (let i = 0; i <= gridSize; i++) {
+          for (let j = 0; j <= gridSize; j++) {
+            const x = (i / gridSize) * size - size / 2;
+            const y = (j / gridSize) * size - size / 2;
             
-            // 使用正弦波函数生成深度值，创建波浪效果
-            const depth = Math.sin(xPos * 2) * Math.cos(yPos * 2) * 0.5;
+            // 基础高度为0，然后添加一些波浪效果
+            const baseZ = 0;
             
-            // 存储深度值到一维数组和二维网格
-            depthValues.push(depth);
-            depthGrid[y][x] = depth;
+            // 添加顶点坐标
+            vertices.push(x, y, baseZ);
             
-            index++;
+            // 生成深度值 (这可能与z坐标不同，表示其他物理量)
+            // 这里我们用正弦波作为示例
+            const depth = Math.sin(x * 1.5) * Math.cos(y * 1.5) * 0.5;
+            depths.push(depth);
           }
         }
         
-        // 计算法线
-        geometry.computeVertexNormals();
+        // 生成三角形索引
+        for (let i = 0; i < gridSize; i++) {
+          for (let j = 0; j < gridSize; j++) {
+            const a = i * (gridSize + 1) + j;
+            const b = i * (gridSize + 1) + j + 1;
+            const c = (i + 1) * (gridSize + 1) + j;
+            const d = (i + 1) * (gridSize + 1) + j + 1;
+            
+            // 每个网格单元生成两个三角形
+            indices.push(a, c, b); // 第一个三角形
+            indices.push(b, c, d); // 第二个三角形
+          }
+        }
         
-        return { geometry, depthValues, depthGrid, gridX, gridY };
+        return {
+          vertices,
+          indices,
+          depths,
+          gridSize,
+          size
+        };
       }
       
       // 根据深度值映射颜色
@@ -133,17 +143,29 @@ function ThreeContainer() {
         );
       }
       
-      // 创建网格并应用深度颜色
-      const { geometry, depthValues, depthGrid, gridX, gridY } = createTriangleMeshPlane(width, height, gridSize, gridSize);
+      // 生成示例数据
+      const sampleData = generateSampleData();
+      
+      // 创建几何体
+      const geometry = new THREE.BufferGeometry();
+      
+      // 设置位置属性
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(sampleData.vertices, 3));
+      
+      // 设置索引
+      geometry.setIndex(sampleData.indices);
+      
+      // 计算法线
+      geometry.computeVertexNormals();
       
       // 找出深度的最小值和最大值
-      const minDepth = Math.min(...depthValues);
-      const maxDepth = Math.max(...depthValues);
+      const minDepth = Math.min(...sampleData.depths);
+      const maxDepth = Math.max(...sampleData.depths);
       
       // 根据深度值创建顶点颜色
       const colors = [];
-      for (let i = 0; i < depthValues.length; i++) {
-        const color = mapDepthToColor(depthValues[i], minDepth, maxDepth);
+      for (let i = 0; i < sampleData.depths.length; i++) {
+        const color = mapDepthToColor(sampleData.depths[i], minDepth, maxDepth);
         colors.push(color.r, color.g, color.b);
       }
       
@@ -162,173 +184,175 @@ function ThreeContainer() {
       scene.add(mesh);
       
       // ---------------------------
-      // 6. 等值线绘制
+      // 6. 创建等值线
       // ---------------------------
       
-      // 存储等值线对象，方便后续更新
+      // 创建一个深度网格，用于等值线计算
+      function createDepthGrid(vertices, depths, gridSize) {
+        const depthGrid = [];
+        for (let i = 0; i <= gridSize; i++) {
+          const row = [];
+          for (let j = 0; j <= gridSize; j++) {
+            const index = i * (gridSize + 1) + j;
+            row.push(depths[index]);
+          }
+          depthGrid.push(row);
+        }
+        return depthGrid;
+      }
+      
+      // 创建深度网格
+      const depthGrid = createDepthGrid(sampleData.vertices, sampleData.depths, sampleData.gridSize);
+      
+      // 存储等值线对象
       let contourLines = new THREE.Group();
       scene.add(contourLines);
       
       // 生成等值线
-// 生成等值线
-function generateContourLines(depthGrid, gridX, gridY, contourLevels, width, height, zOffset = 0.01) {
-  // 移除旧的等值线
-  scene.remove(contourLines);
-  contourLines = new THREE.Group();
-  
-  // 网格单元大小
-  const cellWidth = width / (gridX - 1);
-  const cellHeight = height / (gridY - 1);
-  
-  // 计算实际坐标 - 将网格索引转换为三维空间坐标
-  function getPosition(x, y) {
-    return new THREE.Vector3(
-      x * cellWidth - width / 2,
-      y * cellHeight - height / 2,
-      zOffset // 稍微偏移以避免z-fighting
-    );
-  }
-  
-  // 插值函数 - 计算等值线与单元格边的交点
-  function interpolate(x1, y1, x2, y2, val1, val2, level) {
-    if (Math.abs(val1 - val2) < 1e-6) {
-      return getPosition(x1, y1);
-    }
-    
-    const t = (level - val1) / (val2 - val1);
-    const x = x1 + t * (x2 - x1);
-    const y = y1 + t * (y2 - y1);
-    
-    return getPosition(x, y);
-  }
-  
-  // 行进方格算法 (Marching Squares Algorithm)
-  for (let level of contourLevels) {
-    const lineSegments = [];
-    
-    for (let y = 0; y < gridY - 1; y++) {
-      for (let x = 0; x < gridX - 1; x++) {
-        // 获取单元格四个角的深度值
-        const topLeft = depthGrid[y + 1][x];
-        const topRight = depthGrid[y + 1][x + 1];
-        const bottomLeft = depthGrid[y][x];
-        const bottomRight = depthGrid[y][x + 1];
+      function generateContourLines(depthGrid, contourLevels, gridSize, size, zOffset = 0.01) {
+        // 移除旧的等值线
+        scene.remove(contourLines);
+        contourLines = new THREE.Group();
         
-        // 确定每个角是否高于等值线级别
-        const case_index = 
-          (topLeft > level ? 8 : 0) +
-          (topRight > level ? 4 : 0) +
-          (bottomRight > level ? 2 : 0) +
-          (bottomLeft > level ? 1 : 0);
+        // 计算网格单元大小
+        const cellSize = size / gridSize;
         
-        // 根据情况确定等值线如何通过单元格
-        switch (case_index) {
-          case 0: case 15:
-            // 无等值线通过或完全被等值线包围
-            break;
-            
-          case 1: case 14:
-            // 线段从左侧到底部
-            lineSegments.push(
-              interpolate(x, y, x, y + 1, bottomLeft, topLeft, level),
-              interpolate(x, y, x + 1, y, bottomLeft, bottomRight, level)
-            );
-            break;
-            
-          case 2: case 13:
-            // 线段从底部到右侧
-            lineSegments.push(
-              interpolate(x, y, x + 1, y, bottomLeft, bottomRight, level),
-              interpolate(x + 1, y, x + 1, y + 1, bottomRight, topRight, level)
-            );
-            break;
-            
-          case 3: case 12:
-            // 线段从左侧到右侧
-            lineSegments.push(
-              interpolate(x, y, x, y + 1, bottomLeft, topLeft, level),
-              interpolate(x + 1, y, x + 1, y + 1, bottomRight, topRight, level)
-            );
-            break;
-            
-          case 4: case 11:
-            // 线段从顶部到右侧
-            lineSegments.push(
-              interpolate(x, y + 1, x + 1, y + 1, topLeft, topRight, level),
-              interpolate(x + 1, y, x + 1, y + 1, bottomRight, topRight, level)
-            );
-            break;
-            
-          case 5:
-            // 线段从左侧到顶部和底部到右侧 (鞍点)
-            lineSegments.push(
-              interpolate(x, y, x, y + 1, bottomLeft, topLeft, level),
-              interpolate(x, y + 1, x + 1, y + 1, topLeft, topRight, level),
-              interpolate(x, y, x + 1, y, bottomLeft, bottomRight, level),
-              interpolate(x + 1, y, x + 1, y + 1, bottomRight, topRight, level)
-            );
-            break;
-            
-          case 6: case 9:
-            // 线段从顶部到底部
-            lineSegments.push(
-              interpolate(x, y + 1, x + 1, y + 1, topLeft, topRight, level),
-              interpolate(x, y, x + 1, y, bottomLeft, bottomRight, level)
-            );
-            break;
-            
-          case 7: case 8:
-            // 线段从左侧到顶部
-            lineSegments.push(
-              interpolate(x, y, x, y + 1, bottomLeft, topLeft, level),
-              interpolate(x, y + 1, x + 1, y + 1, topLeft, topRight, level)
-            );
-            break;
-            
-          case 10:
-            // 线段从顶部到右侧和左侧到底部 (鞍点)
-            lineSegments.push(
-              interpolate(x, y + 1, x + 1, y + 1, topLeft, topRight, level),
-              interpolate(x + 1, y, x + 1, y + 1, bottomRight, topRight, level),
-              interpolate(x, y, x, y + 1, bottomLeft, topLeft, level),
-              interpolate(x, y, x + 1, y, bottomLeft, bottomRight, level)
-            );
-            break;
-        }
-      }
-    }
-    
-    // 创建线段几何体
-    if (lineSegments.length > 0) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setFromPoints(lineSegments);
-      
-      const material = new THREE.LineBasicMaterial({ 
-        color: 0x000000, 
-        linewidth: 1,
-        opacity: 0.7,
-        transparent: true
-      });
-      
-      const line = new THREE.LineSegments(geometry, material);
-      contourLines.add(line);
-    }
-  }
-  
-  scene.add(contourLines);
-}
-      
-      // 插值函数 - 计算等值线与单元格边的交点
-      function interpolate(x1, y1, x2, y2, val1, val2, level) {
-        if (Math.abs(val1 - val2) < 1e-6) {
-          return getPosition(x1, y1);
+        // 计算实际坐标
+        function getPosition(i, j) {
+          return new THREE.Vector3(
+            (i / gridSize) * size - size / 2,
+            (j / gridSize) * size - size / 2,
+            zOffset // 稍微偏移以避免z-fighting
+          );
         }
         
-        const t = (level - val1) / (val2 - val1);
-        const x = x1 + t * (x2 - x1);
-        const y = y1 + t * (y2 - y1);
+        // 插值函数 - 计算等值线与单元格边的交点
+        function interpolate(i1, j1, i2, j2, val1, val2, level) {
+          if (Math.abs(val1 - val2) < 1e-6) {
+            return getPosition(i1, j1);
+          }
+          
+          const t = (level - val1) / (val2 - val1);
+          const i = i1 + t * (i2 - i1);
+          const j = j1 + t * (j2 - j1);
+          
+          return getPosition(i, j);
+        }
         
-        return getPosition(x, y);
+        // 行进方格算法 (Marching Squares Algorithm)
+        for (let level of contourLevels) {
+          const lineSegments = [];
+          
+          for (let i = 0; i < gridSize; i++) {
+            for (let j = 0; j < gridSize; j++) {
+              // 获取单元格四个角的深度值
+              const bottomLeft = depthGrid[i][j];
+              const bottomRight = depthGrid[i][j + 1];
+              const topLeft = depthGrid[i + 1][j];
+              const topRight = depthGrid[i + 1][j + 1];
+              
+              // 确定每个角是否高于等值线级别
+              const case_index = 
+                (topLeft > level ? 8 : 0) +
+                (topRight > level ? 4 : 0) +
+                (bottomRight > level ? 2 : 0) +
+                (bottomLeft > level ? 1 : 0);
+              
+              // 根据情况确定等值线如何通过单元格
+              switch (case_index) {
+                case 0: case 15:
+                  // 无等值线通过或完全被等值线包围
+                  break;
+                  
+                case 1: case 14:
+                  // 线段从左侧到底部
+                  lineSegments.push(
+                    interpolate(i, j, i + 1, j, bottomLeft, topLeft, level),
+                    interpolate(i, j, i, j + 1, bottomLeft, bottomRight, level)
+                  );
+                  break;
+                  
+                case 2: case 13:
+                  // 线段从底部到右侧
+                  lineSegments.push(
+                    interpolate(i, j, i, j + 1, bottomLeft, bottomRight, level),
+                    interpolate(i, j + 1, i + 1, j + 1, bottomRight, topRight, level)
+                  );
+                  break;
+                  
+                case 3: case 12:
+                  // 线段从左侧到右侧
+                  lineSegments.push(
+                    interpolate(i, j, i + 1, j, bottomLeft, topLeft, level),
+                    interpolate(i, j + 1, i + 1, j + 1, bottomRight, topRight, level)
+                  );
+                  break;
+                  
+                case 4: case 11:
+                  // 线段从顶部到右侧
+                  lineSegments.push(
+                    interpolate(i + 1, j, i + 1, j + 1, topLeft, topRight, level),
+                    interpolate(i, j + 1, i + 1, j + 1, bottomRight, topRight, level)
+                  );
+                  break;
+                  
+                case 5:
+                  // 线段从左侧到顶部和底部到右侧 (鞍点)
+                  lineSegments.push(
+                    interpolate(i, j, i + 1, j, bottomLeft, topLeft, level),
+                    interpolate(i + 1, j, i + 1, j + 1, topLeft, topRight, level),
+                    interpolate(i, j, i, j + 1, bottomLeft, bottomRight, level),
+                    interpolate(i, j + 1, i + 1, j + 1, bottomRight, topRight, level)
+                  );
+                  break;
+                  
+                case 6: case 9:
+                  // 线段从顶部到底部
+                  lineSegments.push(
+                    interpolate(i + 1, j, i + 1, j + 1, topLeft, topRight, level),
+                    interpolate(i, j, i, j + 1, bottomLeft, bottomRight, level)
+                  );
+                  break;
+                  
+                case 7: case 8:
+                  // 线段从左侧到顶部
+                  lineSegments.push(
+                    interpolate(i, j, i + 1, j, bottomLeft, topLeft, level),
+                    interpolate(i + 1, j, i + 1, j + 1, topLeft, topRight, level)
+                  );
+                  break;
+                  
+                case 10:
+                  // 线段从顶部到右侧和左侧到底部 (鞍点)
+                  lineSegments.push(
+                    interpolate(i + 1, j, i + 1, j + 1, topLeft, topRight, level),
+                    interpolate(i, j + 1, i + 1, j + 1, bottomRight, topRight, level),
+                    interpolate(i, j, i + 1, j, bottomLeft, topLeft, level),
+                    interpolate(i, j, i, j + 1, bottomLeft, bottomRight, level)
+                  );
+                  break;
+              }
+            }
+          }
+          
+          // 创建线段几何体
+          if (lineSegments.length > 0) {
+            const geometry = new THREE.BufferGeometry();
+            geometry.setFromPoints(lineSegments);
+            
+            const material = new THREE.LineBasicMaterial({ 
+              color: 0x000000, 
+              linewidth: 1,
+              opacity: 0.7,
+              transparent: true
+            });
+            
+            const line = new THREE.LineSegments(geometry, material);
+            contourLines.add(line);
+          }
+        }
+        
+        scene.add(contourLines);
       }
       
       // 计算等值线级别
@@ -353,13 +377,13 @@ function generateContourLines(depthGrid, gridX, gridY, contourLevels, width, hei
       
       // 初始生成等值线
       const initialContourLevels = calculateContourLevels(minDepth, maxDepth, contourParams.contourCount);
-      generateContourLines(depthGrid, gridX, gridY, initialContourLevels, width, height);
+      generateContourLines(depthGrid, initialContourLevels, sampleData.gridSize, sampleData.size);
       
       // 更新等值线
       function updateContourLines() {
         if (contourParams.showContours) {
           const levels = calculateContourLevels(minDepth, maxDepth, contourParams.contourCount);
-          generateContourLines(depthGrid, gridX, gridY, levels, width, height);
+          generateContourLines(depthGrid, levels, sampleData.gridSize, sampleData.size);
           
           // 更新等值线颜色和透明度
           contourLines.children.forEach(line => {
@@ -391,43 +415,40 @@ function generateContourLines(depthGrid, gridX, gridY, contourLevels, width, hei
         regenerateDepth: function() {
           // 重新生成深度值
           const positions = geometry.attributes.position.array;
-          const vertexCount = positions.length / 3;
           
           // 重置Z坐标
-          for (let i = 0; i < vertexCount; i++) {
+          for (let i = 0; i < sampleData.depths.length; i++) {
             positions[i * 3 + 2] = 0;
           }
           
           // 生成新的深度值
-          let index = 0;
-          for (let y = 0; y < gridY; y++) {
-            for (let x = 0; x < gridX; x++) {
-              const xPos = positions[index * 3];
-              const yPos = positions[index * 3 + 1];
+          for (let i = 0; i <= sampleData.gridSize; i++) {
+            for (let j = 0; j <= sampleData.gridSize; j++) {
+              const index = i * (sampleData.gridSize + 1) + j;
+              const x = positions[index * 3];
+              const y = positions[index * 3 + 1];
               
               // 随机生成新的深度函数
               const frequency = Math.random() * 3 + 1;
-              const depth = Math.sin(xPos * frequency) * Math.cos(yPos * frequency) * 0.5;
+              const depth = Math.sin(x * frequency) * Math.cos(y * frequency) * 0.5;
               
-              depthValues[index] = depth;
-              depthGrid[y][x] = depth;
+              sampleData.depths[index] = depth;
+              depthGrid[i][j] = depth;
               
               // 如果启用了几何深度显示，则更新Z坐标
               if (params.showDepthAsGeometry) {
                 positions[index * 3 + 2] = depth * params.depthScale;
               }
-              
-              index++;
             }
           }
           
           // 更新颜色
-          const newMinDepth = Math.min(...depthValues);
-          const newMaxDepth = Math.max(...depthValues);
+          const newMinDepth = Math.min(...sampleData.depths);
+          const newMaxDepth = Math.max(...sampleData.depths);
           
           const colorAttribute = geometry.attributes.color;
-          for (let i = 0; i < depthValues.length; i++) {
-            const color = mapDepthToColor(depthValues[i], newMinDepth, newMaxDepth);
+          for (let i = 0; i < sampleData.depths.length; i++) {
+            const color = mapDepthToColor(sampleData.depths[i], newMinDepth, newMaxDepth);
             colorAttribute.setXYZ(i, color.r, color.g, color.b);
           }
           
@@ -459,12 +480,11 @@ function generateContourLines(depthGrid, gridX, gridY, contourLevels, width, hei
       
       gui.add(params, 'showDepthAsGeometry').name('Show Depth as Geometry').onChange(value => {
         const positions = geometry.attributes.position.array;
-        let index = 0;
         
-        for (let y = 0; y < gridY; y++) {
-          for (let x = 0; x < gridX; x++) {
-            positions[index * 3 + 2] = value ? depthGrid[y][x] * params.depthScale : 0;
-            index++;
+        for (let i = 0; i <= sampleData.gridSize; i++) {
+          for (let j = 0; j <= sampleData.gridSize; j++) {
+            const index = i * (sampleData.gridSize + 1) + j;
+            positions[index * 3 + 2] = value ? sampleData.depths[index] * params.depthScale : 0;
           }
         }
         
@@ -475,12 +495,11 @@ function generateContourLines(depthGrid, gridX, gridY, contourLevels, width, hei
       gui.add(params, 'depthScale', 0.1, 3).name('Depth Scale').onChange(value => {
         if (params.showDepthAsGeometry) {
           const positions = geometry.attributes.position.array;
-          let index = 0;
           
-          for (let y = 0; y < gridY; y++) {
-            for (let x = 0; x < gridX; x++) {
-              positions[index * 3 + 2] = depthGrid[y][x] * value;
-              index++;
+          for (let i = 0; i <= sampleData.gridSize; i++) {
+            for (let j = 0; j <= sampleData.gridSize; j++) {
+              const index = i * (sampleData.gridSize + 1) + j;
+              positions[index * 3 + 2] = sampleData.depths[index] * value;
             }
           }
           
@@ -506,9 +525,64 @@ function generateContourLines(depthGrid, gridX, gridY, contourLevels, width, hei
       contourFolder.addColor(contourParams, 'contourColor').name('Contour Color').onChange(updateContourLines);
       contourFolder.add(contourParams, 'contourOpacity', 0, 1).name('Contour Opacity').onChange(updateContourLines);
       contourFolder.open();
+      
+      // ---------------------------
+      // 8. 加载外部数据的函数
+      // ---------------------------
+      
+      // 这个函数可以用来加载外部数据并更新网格
+      function loadCustomData(vertices, indices, depths) {
+        // 移除旧的网格
+        scene.remove(mesh);
+        
+        // 创建新的几何体
+        const newGeometry = new THREE.BufferGeometry();
+        
+        // 设置位置属性
+        newGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        
+        // 设置索引
+        newGeometry.setIndex(indices);
+        
+        // 计算法线
+        newGeometry.computeVertexNormals();
+        
+        // 找出深度的最小值和最大值
+        const newMinDepth = Math.min(...depths);
+        const newMaxDepth = Math.max(...depths);
+        
+        // 根据深度值创建顶点颜色
+        const newColors = [];
+        for (let i = 0; i < depths.length; i++) {
+          const color = mapDepthToColor(depths[i], newMinDepth, newMaxDepth);
+          newColors.push(color.r, color.g, color.b);
+        }
+        
+        // 将颜色添加到几何体中
+        newGeometry.setAttribute('color', new THREE.Float32BufferAttribute(newColors, 3));
+        
+        // 创建新的网格
+        const newMesh = new THREE.Mesh(newGeometry, material);
+        scene.add(newMesh);
+        
+        // 更新网格引用
+        mesh.geometry.dispose();
+        Object.assign(mesh, newMesh);
+        
+        // 如果数据包含网格结构，可以更新等值线
+        // 这里需要根据实际数据结构调整
+        
+        // 更新最小最大深度值
+        Object.assign(minMaxDepth, { min: newMinDepth, max: newMaxDepth });
+        minDepthController.updateDisplay();
+        maxDepthController.updateDisplay();
+      }
+      
+      // 将函数暴露到全局，方便外部调用
+      window.loadCustomData = loadCustomData;
 
       // ---------------------------
-      // 8. 动画循环
+      // 9. 动画循环
       // ---------------------------
       function animate() {
         requestAnimationFrame(animate);
@@ -519,7 +593,7 @@ function generateContourLines(depthGrid, gridX, gridY, contourLevels, width, hei
       animate();
 
       // ---------------------------
-      // 9. 监听窗口变化，保持自适应
+      // 10. 监听窗口变化，保持自适应
       // ---------------------------
       window.addEventListener('resize', onWindowResize, false);
       function onWindowResize() {
