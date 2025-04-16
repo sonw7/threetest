@@ -11,7 +11,8 @@ function NavBar({ setScene }) {
             <Button leftSection={<ChevronDown size={16} />}>Scene 1</Button>
           </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA1')}>巷道</Menu.Item>
+            <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA1')}>等值线1</Menu.Item>
+            <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA4')}>等值线2</Menu.Item>
             <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA2')}>方块性能测试</Menu.Item>
             <Menu.Item leftSection={<ThreeDCubeSphere />} onClick={() => setScene('sceneA3')}>网格性能可视化</Menu.Item>
 
