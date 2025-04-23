@@ -5,13 +5,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from 'three/addons/libs/stats.module.js';
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import { useRef, useEffect } from 'react';
-
+import {processData} from '../utils/js/dataUtil.js';
 function Dengzhixian() {
   const containerRef = useRef(null);
   // 避免重复初始化的标记
   const isContainerRunning = useRef(false);
 
   useEffect(() => {
+    
     // 确保只初始化一次
     if (!isContainerRunning.current && containerRef.current) {
       isContainerRunning.current = true;
@@ -143,46 +144,253 @@ function Dengzhixian() {
         );
       }
       
-      // 生成示例数据
-      const sampleData = generateSample3DData();
-      
-      // 创建几何体
-      const geometry = new THREE.BufferGeometry();
-      
-      // 设置位置属性
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(sampleData.vertices, 3));
-      
-      // 设置索引
-      geometry.setIndex(sampleData.indices);
-      
-      // 计算法线
-      geometry.computeVertexNormals();
-      
-      // 找出深度的最小值和最大值
-      const minDepth = Math.min(...sampleData.depths);
-      const maxDepth = Math.max(...sampleData.depths);
-      
-      // 根据深度值创建顶点颜色
-      const colors = [];
-      for (let i = 0; i < sampleData.depths.length; i++) {
-        const color = mapDepthToColor(sampleData.depths[i], minDepth, maxDepth);
-        colors.push(color.r, color.g, color.b);
-      }
-      
-      // 将颜色添加到几何体中
-      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-      
-      // 创建使用顶点颜色的材质
-      const material = new THREE.MeshPhongMaterial({
-        vertexColors: true,
-        side: THREE.DoubleSide,
-        flatShading: false
+      let sampleData = null;
+
+      fetch("/layer.txt")
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+        return response.text();
+      }).then(data => {
+        const processedData = processData(data);
+        console.log("地层数量", processedData.length);
+        console.log("地层数据", processedData);
+        sampleData =  processedData[0];
+        console.log("sampleData", sampleData);
+        
+        // 在获取数据后创建几何体
+        createGeometryAndScene();
+      })
+      .catch(error => {
+        console.error("加载数据出错:", error);
+        // 如果加载失败，使用示例数据
+        sampleData = generateSample3DData();
+        createGeometryAndScene();
       });
       
-      // 创建网格并添加到场景
-      const mesh = new THREE.Mesh(geometry, material);
-      scene.add(mesh);
+      // 将几何体创建和场景设置封装为函数
+      function createGeometryAndScene() {
+        // 创建几何体
+        const geometry = new THREE.BufferGeometry();
+        
+        // 设置位置属性
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(sampleData.vertices, 3));
+        
+        // 设置索引
+        geometry.setIndex(sampleData.indices);
+        
+        // 计算法线
+        geometry.computeVertexNormals();
+        
+        // 计算边界框，确保几何体居中
+        geometry.computeBoundingBox();
+        const boundingBox = geometry.boundingBox;
+        const center = new THREE.Vector3();
+        boundingBox.getCenter(center);
+        
+        // 创建一个偏移矩阵，将几何体居中
+        const positionAttribute = geometry.attributes.position;
+        for (let i = 0; i < positionAttribute.count; i++) {
+          const x = positionAttribute.getX(i) - center.x;
+          const y = positionAttribute.getY(i) - center.y;
+          const z = positionAttribute.getZ(i) - center.z;
+          
+          positionAttribute.setXYZ(i, x, y, z);
+        }
+        
+        // 重新计算边界框
+        geometry.computeBoundingBox();
+        positionAttribute.needsUpdate = true;
+        
+        // 更新原始顶点数组，确保等值线也使用居中后的顶点坐标
+        const centeredVertices = [];
+        for (let i = 0; i < positionAttribute.count; i++) {
+          centeredVertices.push(
+            positionAttribute.getX(i),
+            positionAttribute.getY(i),
+            positionAttribute.getZ(i)
+          );
+        }
+        
+        // 使用居中后的顶点数组替换原始顶点数组
+        sampleData.vertices = centeredVertices;
+        
+        // 找出深度的最小值和最大值
+        const minDepth = Math.min(...sampleData.depths);
+        const maxDepth = Math.max(...sampleData.depths);
+        
+        // 根据深度值创建顶点颜色
+        const colors = [];
+        for (let i = 0; i < sampleData.depths.length; i++) {
+          const color = mapDepthToColor(sampleData.depths[i], minDepth, maxDepth);
+          colors.push(color.r, color.g, color.b);
+        }
+        
+        // 将颜色添加到几何体中
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        
+        // 创建使用顶点颜色的材质
+        const material = new THREE.MeshPhongMaterial({
+          vertexColors: true,
+          side: THREE.DoubleSide,
+          flatShading: false
+        });
+        
+        // 创建网格并添加到场景
+        const mesh = new THREE.Mesh(geometry, material);
+        // 使用scale属性缩放几何体，而不是修改顶点坐标
+        mesh.scale.set(0.1, 0.1, 0.1);
+        scene.add(mesh);
+        
+        // 初始等值线参数
+        const contourParams = {
+          contourCount: 10,
+          showContours: true,
+          contourColor: '#000000',
+          contourOpacity: 0.7
+        };
+        
+        // 使用更新后的顶点坐标生成等值线
+        const initialContourLevels = calculateContourLevels(minDepth, maxDepth, contourParams.contourCount);
+        generate3DContourLines(sampleData.vertices, sampleData.indices, sampleData.depths, initialContourLevels);
+        // 同样缩放等值线对象
+        contourLines.scale.set(0.1, 0.1, 0.1);
+        
+        // ---------------------------
+        // 7. 创建GUI控制面板
+        // ---------------------------
       
+        // 控制参数
+        const params = {
+          wireframe: false,
+          flatShading: false,
+          showVertices: false,
+          resetCamera: function() {
+            camera.position.set(x, y, z);
+            orbitControls.target.set(0, 0, 0);
+            orbitControls.update();
+          },
+          regenerateData: function() {
+            // 重新生成深度值，保持几何形状不变
+            const positions = geometry.attributes.position.array;
+            
+            // 生成新的深度值
+            for (let i = 0; i < sampleData.depths.length; i++) {
+              const x = positions[i * 3];
+              const y = positions[i * 3 + 1];
+              
+              // 随机生成新的深度函数
+              const frequency = Math.random() * 3 + 1;
+              const depth = Math.cos(x * frequency) * Math.sin(y * frequency) * 0.5;
+              
+              sampleData.depths[i] = depth;
+            }
+            
+            // 更新颜色
+            const newMinDepth = Math.min(...sampleData.depths);
+            const newMaxDepth = Math.max(...sampleData.depths);
+            
+            const colorAttribute = geometry.attributes.color;
+            for (let i = 0; i < sampleData.depths.length; i++) {
+              const color = mapDepthToColor(sampleData.depths[i], newMinDepth, newMaxDepth);
+              colorAttribute.setXYZ(i, color.r, color.g, color.b);
+            }
+            
+            // 更新最小最大深度值
+            Object.assign(minMaxDepth, { min: newMinDepth, max: newMaxDepth });
+            minDepthController.updateDisplay();
+            maxDepthController.updateDisplay();
+            
+            colorAttribute.needsUpdate = true;
+            
+            // 更新等值线
+            updateContourLines();
+          }
+        };
+        
+        // 顶点可视化
+        let vertexMarkers = null;
+        
+        function toggleVertexMarkers(show) {
+          if (show) {
+            if (vertexMarkers) scene.remove(vertexMarkers);
+            
+            vertexMarkers = new THREE.Group();
+            const positions = geometry.attributes.position.array;
+            // 由于整体已经缩放，这里不需要再将标记缩小
+            const markerGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+            const markerMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            
+            for (let i = 0; i < positions.length; i += 3) {
+              const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+              marker.position.set(positions[i], positions[i+1], positions[i+2]);
+              vertexMarkers.add(marker);
+            }
+            
+            // 同样缩放顶点标记组
+            vertexMarkers.scale.set(0.1, 0.1, 0.1);
+            scene.add(vertexMarkers);
+          } else if (vertexMarkers) {
+            scene.remove(vertexMarkers);
+            vertexMarkers = null;
+          }
+        }
+        
+        const gui = new GUI();
+        
+        // 添加控制选项
+        gui.add(params, 'wireframe').onChange(value => {
+          material.wireframe = value;
+        });
+        
+        gui.add(params, 'flatShading').onChange(value => {
+          material.flatShading = value;
+          material.needsUpdate = true;
+        });
+        
+        gui.add(params, 'showVertices').onChange(toggleVertexMarkers);
+        
+        gui.add(params, 'resetCamera').name('Reset Camera');
+        gui.add(params, 'regenerateData').name('New Depth Values');
+        
+        // 添加深度范围显示
+        const minMaxDepth = { min: minDepth, max: maxDepth };
+        const depthFolder = gui.addFolder('Depth Range');
+        const minDepthController = depthFolder.add(minMaxDepth, 'min').name('Min Depth').disable();
+        const maxDepthController = depthFolder.add(minMaxDepth, 'max').name('Max Depth').disable();
+        depthFolder.open();
+        
+        // 添加等值线控制
+        const contourFolder = gui.addFolder('Contour Lines');
+        contourFolder.add(contourParams, 'showContours').name('Show Contours').onChange(updateContourLines);
+        contourFolder.add(contourParams, 'contourCount', 1, 30, 1).name('Contour Count').onChange(updateContourLines);
+        contourFolder.addColor(contourParams, 'contourColor').name('Contour Color').onChange(updateContourLines);
+        contourFolder.add(contourParams, 'contourOpacity', 0, 1).name('Contour Opacity').onChange(updateContourLines);
+        contourFolder.open();
+        
+        // 更新等值线
+        function updateContourLines() {
+          if (contourParams.showContours) {
+            const levels = calculateContourLevels(minDepth, maxDepth, contourParams.contourCount);
+            generate3DContourLines(sampleData.vertices, sampleData.indices, sampleData.depths, levels);
+            
+            // 重新应用缩放
+            contourLines.scale.set(0.1, 0.1, 0.1);
+            
+            // 更新等值线颜色和透明度
+            contourLines.children.forEach(line => {
+              line.material.color.set(contourParams.contourColor);
+              line.material.opacity = contourParams.contourOpacity;
+            });
+          } else {
+            scene.remove(contourLines);
+            contourLines = new THREE.Group();
+            scene.add(contourLines);
+          }
+        }
+      }
+
       // ---------------------------
       // 6. 创建三维等值线
       // ---------------------------
@@ -317,145 +525,6 @@ function Dengzhixian() {
         return levels;
       }
       
-      // 初始等值线参数
-      const contourParams = {
-        contourCount: 10,
-        showContours: true,
-        contourColor: '#000000',
-        contourOpacity: 0.7
-      };
-      
-      // 初始生成三维等值线
-      const initialContourLevels = calculateContourLevels(minDepth, maxDepth, contourParams.contourCount);
-      generate3DContourLines(sampleData.vertices, sampleData.indices, sampleData.depths, initialContourLevels);
-      
-      // 更新等值线
-      function updateContourLines() {
-        if (contourParams.showContours) {
-          const levels = calculateContourLevels(minDepth, maxDepth, contourParams.contourCount);
-          generate3DContourLines(sampleData.vertices, sampleData.indices, sampleData.depths, levels);
-          
-          // 更新等值线颜色和透明度
-          contourLines.children.forEach(line => {
-            line.material.color.set(contourParams.contourColor);
-            line.material.opacity = contourParams.contourOpacity;
-          });
-        } else {
-          scene.remove(contourLines);
-          contourLines = new THREE.Group();
-          scene.add(contourLines);
-        }
-      }
-      
-      // ---------------------------
-      // 7. 创建GUI控制面板
-      // ---------------------------
-      
-      // 控制参数
-      const params = {
-        wireframe: false,
-        flatShading: false,
-        showVertices: false,
-        resetCamera: function() {
-          camera.position.set(x, y, z);
-          orbitControls.target.set(0, 0, 0);
-          orbitControls.update();
-        },
-        regenerateData: function() {
-          // 重新生成深度值，保持几何形状不变
-          const positions = geometry.attributes.position.array;
-          
-          // 生成新的深度值
-          for (let i = 0; i < sampleData.depths.length; i++) {
-            const x = positions[i * 3];
-            const y = positions[i * 3 + 1];
-            
-            // 随机生成新的深度函数
-            const frequency = Math.random() * 3 + 1;
-            const depth = Math.cos(x * frequency) * Math.sin(y * frequency) * 0.5;
-            
-            sampleData.depths[i] = depth;
-          }
-          
-          // 更新颜色
-          const newMinDepth = Math.min(...sampleData.depths);
-          const newMaxDepth = Math.max(...sampleData.depths);
-          
-          const colorAttribute = geometry.attributes.color;
-          for (let i = 0; i < sampleData.depths.length; i++) {
-            const color = mapDepthToColor(sampleData.depths[i], newMinDepth, newMaxDepth);
-            colorAttribute.setXYZ(i, color.r, color.g, color.b);
-          }
-          
-          // 更新最小最大深度值
-          Object.assign(minMaxDepth, { min: newMinDepth, max: newMaxDepth });
-          minDepthController.updateDisplay();
-          maxDepthController.updateDisplay();
-          
-          colorAttribute.needsUpdate = true;
-          
-          // 更新等值线
-          updateContourLines();
-        }
-      };
-      
-      // 顶点可视化
-      let vertexMarkers = null;
-      
-      function toggleVertexMarkers(show) {
-        if (show) {
-          if (vertexMarkers) scene.remove(vertexMarkers);
-          
-          vertexMarkers = new THREE.Group();
-          const positions = geometry.attributes.position.array;
-          const markerGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-          const markerMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-          
-          for (let i = 0; i < positions.length; i += 3) {
-            const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-            marker.position.set(positions[i], positions[i+1], positions[i+2]);
-            vertexMarkers.add(marker);
-          }
-          
-          scene.add(vertexMarkers);
-        } else if (vertexMarkers) {
-          scene.remove(vertexMarkers);
-          vertexMarkers = null;
-        }
-      }
-      
-      const gui = new GUI();
-      
-      // 添加控制选项
-      gui.add(params, 'wireframe').onChange(value => {
-        material.wireframe = value;
-      });
-      
-      gui.add(params, 'flatShading').onChange(value => {
-        material.flatShading = value;
-        material.needsUpdate = true;
-      });
-      
-      gui.add(params, 'showVertices').onChange(toggleVertexMarkers);
-      
-      gui.add(params, 'resetCamera').name('Reset Camera');
-      gui.add(params, 'regenerateData').name('New Depth Values');
-      
-      // 添加深度范围显示
-      const minMaxDepth = { min: minDepth, max: maxDepth };
-      const depthFolder = gui.addFolder('Depth Range');
-      const minDepthController = depthFolder.add(minMaxDepth, 'min').name('Min Depth').disable();
-      const maxDepthController = depthFolder.add(minMaxDepth, 'max').name('Max Depth').disable();
-      depthFolder.open();
-      
-      // 添加等值线控制
-      const contourFolder = gui.addFolder('Contour Lines');
-      contourFolder.add(contourParams, 'showContours').name('Show Contours').onChange(updateContourLines);
-      contourFolder.add(contourParams, 'contourCount', 1, 30, 1).name('Contour Count').onChange(updateContourLines);
-      contourFolder.addColor(contourParams, 'contourColor').name('Contour Color').onChange(updateContourLines);
-      contourFolder.add(contourParams, 'contourOpacity', 0, 1).name('Contour Opacity').onChange(updateContourLines);
-      contourFolder.open();
-      
       // ---------------------------
       // 8. 加载外部数据的函数
       // ---------------------------
@@ -479,6 +548,40 @@ function Dengzhixian() {
         // 设置索引
         newGeometry.setIndex(indices);
         
+        // 计算边界框，确保几何体居中
+        newGeometry.computeBoundingBox();
+        const boundingBox = newGeometry.boundingBox;
+        const center = new THREE.Vector3();
+        boundingBox.getCenter(center);
+        
+        // 创建一个偏移矩阵，将几何体居中
+        const positionAttribute = newGeometry.attributes.position;
+        for (let i = 0; i < positionAttribute.count; i++) {
+          const x = positionAttribute.getX(i) - center.x;
+          const y = positionAttribute.getY(i) - center.y;
+          const z = positionAttribute.getZ(i) - center.z;
+          
+          positionAttribute.setXYZ(i, x, y, z);
+        }
+        
+        // 重新计算边界框
+        newGeometry.computeBoundingBox();
+        positionAttribute.needsUpdate = true;
+        
+        // 更新原始顶点数组
+        const centeredVertices = [];
+        for (let i = 0; i < positionAttribute.count; i++) {
+          centeredVertices.push(
+            positionAttribute.getX(i),
+            positionAttribute.getY(i),
+            positionAttribute.getZ(i)
+          );
+        }
+        
+        // 使用居中后的顶点数组替换原始顶点数组
+        vertices = centeredVertices;
+        sampleData.vertices = centeredVertices;
+        
         // 计算法线
         newGeometry.computeVertexNormals();
         
@@ -498,6 +601,8 @@ function Dengzhixian() {
         
         // 创建新的网格
         const newMesh = new THREE.Mesh(newGeometry, material);
+        // 使用scale属性缩放几何体
+        newMesh.scale.set(0.1, 0.1, 0.1);
         scene.add(newMesh);
         
         // 更新网格引用
@@ -509,9 +614,11 @@ function Dengzhixian() {
         minDepthController.updateDisplay();
         maxDepthController.updateDisplay();
         
-        // 更新等值线
+        // 更新等值线，使用更新后的顶点坐标
         generate3DContourLines(vertices, indices, depths, 
           calculateContourLevels(newMinDepth, newMaxDepth, contourParams.contourCount));
+        // 同样缩放等值线对象
+        contourLines.scale.set(0.1, 0.1, 0.1);
         
         // 如果顶点标记开启，则更新顶点标记
         if (params.showVertices) {
